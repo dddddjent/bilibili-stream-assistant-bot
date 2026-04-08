@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 
+import httpx
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from .bilibili import create_bilibili_client, fetch_room_info, fetch_streamer_name
 from .config import Config
-from .watcher import is_watching, start_watching, stop_watching
+from .watcher import is_watching, start_watching, stop_watching, resolve_streamer_name
 
 
 def _get_config(context: ContextTypes.DEFAULT_TYPE) -> Config:
@@ -40,13 +41,24 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if started_rooms:
         suffix = "" if not already_running_rooms else f" ({len(already_running_rooms)} rooms were already running)"
         mode = "online-only" if config.notify_online_only else "all-status"
+        message = "Watching started.\n" + "Poll with:\n" + \
+            f"\toffline={config.check_interval_offline_seconds:g}s\n" + \
+            f"\tonline={config.check_interval_online_seconds:g}s\n" + \
+            f"\tmode={mode}{suffix}\n"
+        async with create_bilibili_client() as client:
+            for room_id in started_rooms:
+                mid: int | None = None
+                try:
+                    info = await fetch_room_info(client, room_id=room_id)
+                    mid = info.uid
+                    name = await resolve_streamer_name(context.application, client=client, mid=mid)
+                except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError):
+                    name = f"mid={mid}" if mid is not None else f"room_id={room_id}"
+
+                message += f"room_id={room_id} name={name}\n"
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=(
-                "Watching started. I will check immediately, then poll with: "
-                f"offline={config.check_interval_offline_seconds:g}s, online={config.check_interval_online_seconds:g}s "
-                f"for {len(started_rooms)} rooms. mode={mode}{suffix}"
-            ),
+            text=message,
         )
     else:
         await context.bot.send_message(
@@ -91,7 +103,8 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         state = "STREAMING" if info.live_status == 1 else "OFFLINE"
         lines.append(f"{name}: live_status={info.live_status} ({state})")
 
-    watching_text = "yes" if is_watching(context.application, update.effective_chat.id) else "no"
+    watching_text = "yes" if is_watching(
+        context.application, update.effective_chat.id) else "no"
     lines.append(f"watching={watching_text}")
 
     await context.bot.send_message(

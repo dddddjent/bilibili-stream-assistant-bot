@@ -28,14 +28,14 @@ def _get_streamer_name_cache(application: Application) -> dict[int, str]:
     return cache
 
 
-async def _resolve_streamer_name(application: Application, *, client: httpx.AsyncClient, uid: int) -> str:
+async def resolve_streamer_name(application: Application, *, client: httpx.AsyncClient, mid: int) -> str:
     cache = _get_streamer_name_cache(application)
-    cached = cache.get(uid)
+    cached = cache.get(mid)
     if cached is not None:
         return cached
 
-    name = await fetch_streamer_name(client, mid=uid)
-    cache[uid] = name
+    name = await fetch_streamer_name(client, mid=mid)
+    cache[mid] = name
     return name
 
 
@@ -113,10 +113,10 @@ async def _watch_loop(
                 )
 
                 try:
-                    display_name = await _resolve_streamer_name(
+                    display_name = await resolve_streamer_name(
                         application,
                         client=client,
-                        uid=room_info.uid,
+                        mid=room_info.uid,
                     )
                 except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError):
                     logger.exception("Streamer name lookup failed")
@@ -124,15 +124,16 @@ async def _watch_loop(
 
                 last_display_name = display_name
 
-                state = "STREAMING" if room_info.live_status == 1 else "OFFLINE"
                 should_notify = (not notify_online_only) or (room_info.live_status == 1)
+                message = ""
+                if room_info.live_status == 1:
+                    message = f"{display_name} 开播啦！下次检查： {sleep_seconds:g}s"
+                else:
+                    message = f"{display_name} 未开播。下次检查： {sleep_seconds:g}s"
                 if should_notify:
                     await application.bot.send_message(
                         chat_id=chat_id,
-                        text=(
-                            f"{display_name}: live_status={room_info.live_status} ({state}). "
-                            f"next_check_in={sleep_seconds:g}s"
-                        ),
+                        text=message,
                     )
             except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError) as exc:
                 logger.exception("Room check failed")
