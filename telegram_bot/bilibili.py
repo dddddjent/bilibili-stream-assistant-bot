@@ -14,13 +14,16 @@ _HEADERS = {
 }
 
 
-async def fetch_live_status(room_id: int) -> int:
+def create_bilibili_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(timeout=10.0, headers=_HEADERS, follow_redirects=True)
+
+
+async def fetch_live_status(client: httpx.AsyncClient, *, room_id: int) -> int:
     """Return live_status (1=live, 0=offline) for the given Bilibili room_id."""
 
-    async with httpx.AsyncClient(timeout=10.0, headers=_HEADERS, follow_redirects=True) as client:
-        response = await client.get(_BILIBILI_ROOM_INFO_URL, params={"room_id": room_id})
-        response.raise_for_status()
-        payload: dict[str, Any] = response.json()
+    response = await client.get(_BILIBILI_ROOM_INFO_URL, params={"room_id": room_id})
+    response.raise_for_status()
+    payload: dict[str, Any] = response.json()
 
     assert payload.get("code") == 0, payload
 

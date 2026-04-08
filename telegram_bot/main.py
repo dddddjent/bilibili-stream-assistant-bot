@@ -25,13 +25,14 @@ def main() -> None:
         application.bot_data["config"] = config
 
         if config.startup_chat_id is not None:
-            start_watching(
-                application,
-                chat_id=config.startup_chat_id,
-                room_id=config.bilibili_room_id,
-                interval_offline_seconds=config.check_interval_offline_seconds,
-                interval_online_seconds=config.check_interval_online_seconds,
-            )
+            for room_id in config.bilibili_room_ids:
+                start_watching(
+                    application,
+                    chat_id=config.startup_chat_id,
+                    room_id=room_id,
+                    interval_offline_seconds=config.check_interval_offline_seconds,
+                    interval_online_seconds=config.check_interval_online_seconds,
+                )
 
     application = build_application(token, post_init=post_init)
     application.run_polling()
