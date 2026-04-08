@@ -32,6 +32,7 @@ def main() -> None:
                     room_id=room_id,
                     interval_offline_seconds=config.check_interval_offline_seconds,
                     interval_online_seconds=config.check_interval_online_seconds,
+                    notify_online_only=config.notify_online_only,
                 )
 
     application = build_application(token, post_init=post_init)

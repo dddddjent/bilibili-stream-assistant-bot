@@ -46,6 +46,7 @@ def start_watching(
     room_id: int,
     interval_offline_seconds: float,
     interval_online_seconds: float,
+    notify_online_only: bool,
 ) -> bool:
     tasks = _get_watch_tasks(application)
     room_tasks = tasks.setdefault(chat_id, {})
@@ -61,6 +62,7 @@ def start_watching(
             room_id=room_id,
             interval_offline_seconds=interval_offline_seconds,
             interval_online_seconds=interval_online_seconds,
+            notify_online_only=notify_online_only,
         )
     )
     room_tasks[room_id] = task
@@ -74,6 +76,7 @@ async def _watch_loop(
     room_id: int,
     interval_offline_seconds: float,
     interval_online_seconds: float,
+    notify_online_only: bool,
 ) -> None:
     last_live_status: int | None = None
 
@@ -88,22 +91,26 @@ async def _watch_loop(
                 state = "STREAMING" if live_status == 1 else "OFFLINE"
                 sleep_seconds = interval_online_seconds if live_status == 1 else interval_offline_seconds
 
-                await application.bot.send_message(
-                    chat_id=chat_id,
-                    text=(
-                        f"Bilibili room {room_id}: live_status={live_status} ({state}). "
-                        f"next_check_in={sleep_seconds:g}s"
-                    ),
-                )
+                should_notify = (not notify_online_only) or (live_status == 1)
+                if should_notify:
+                    await application.bot.send_message(
+                        chat_id=chat_id,
+                        text=(
+                            f"Bilibili room {room_id}: live_status={live_status} ({state}). "
+                            f"next_check_in={sleep_seconds:g}s"
+                        ),
+                    )
             except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError) as exc:
                 logger.exception("Live check failed")
 
                 if last_live_status is not None:
                     sleep_seconds = interval_online_seconds if last_live_status == 1 else interval_offline_seconds
 
-                await application.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"Bilibili room {room_id}: check failed: {exc}. next_check_in={sleep_seconds:g}s",
-                )
+                should_notify = (not notify_online_only) or (last_live_status == 1)
+                if should_notify:
+                    await application.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"Bilibili room {room_id}: check failed: {exc}. next_check_in={sleep_seconds:g}s",
+                    )
 
             await asyncio.sleep(sleep_seconds)

@@ -39,6 +39,7 @@ uv run python -m telegram_bot
 
 - Send `/start` to the bot in Telegram: it will check immediately, then keep polling the Bilibili
   `live_status` (1=streaming, 0=offline) using different intervals depending on whether the stream is live.
+  - If you set `NOTIFY_ONLINE_ONLY=1`, it will keep polling while offline but won’t send OFFLINE messages.
 - Send `/stop` to stop the repeating messages.
 - Send `/status` to check once.
 
@@ -58,3 +59,4 @@ Legacy:
 Optional:
 
 - `TELEGRAM_CHAT_ID`: if set, the bot will start sending messages to that chat immediately on startup.
+- `NOTIFY_ONLINE_ONLY` (default: `0`): set to `1` to only send repeating messages while a room is streaming (still polls while offline).

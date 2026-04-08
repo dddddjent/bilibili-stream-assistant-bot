@@ -33,18 +33,20 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             room_id=room_id,
             interval_offline_seconds=config.check_interval_offline_seconds,
             interval_online_seconds=config.check_interval_online_seconds,
+            notify_online_only=config.notify_online_only,
         )
         (started_rooms if started else already_running_rooms).append(room_id)
 
     if started_rooms:
         rooms_text = ", ".join(str(rid) for rid in started_rooms)
         suffix = "" if not already_running_rooms else " (some rooms were already running)"
+        mode = "online-only" if config.notify_online_only else "all-status"
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=(
                 "Watching started. I will check immediately, then poll with: "
                 f"offline={config.check_interval_offline_seconds:g}s, online={config.check_interval_online_seconds:g}s "
-                f"for rooms: {rooms_text}.{suffix}"
+                f"for rooms: {rooms_text}. mode={mode}{suffix}"
             ),
         )
     else:
