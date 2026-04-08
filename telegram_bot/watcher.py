@@ -42,7 +42,8 @@ def start_watching(
     *,
     chat_id: int,
     room_id: int,
-    interval_seconds: float,
+    interval_offline_seconds: float,
+    interval_online_seconds: float,
 ) -> bool:
     tasks = _get_watch_tasks(application)
     existing = tasks.get(chat_id)
@@ -54,7 +55,8 @@ def start_watching(
             application,
             chat_id=chat_id,
             room_id=room_id,
-            interval_seconds=interval_seconds,
+            interval_offline_seconds=interval_offline_seconds,
+            interval_online_seconds=interval_online_seconds,
         )
     )
     tasks[chat_id] = task
@@ -66,21 +68,37 @@ async def _watch_loop(
     *,
     chat_id: int,
     room_id: int,
-    interval_seconds: float,
+    interval_offline_seconds: float,
+    interval_online_seconds: float,
 ) -> None:
+    last_live_status: int | None = None
+
     while True:
+        sleep_seconds = interval_offline_seconds
+
         try:
             live_status = await fetch_live_status(room_id)
+            last_live_status = live_status
+
             state = "STREAMING" if live_status == 1 else "OFFLINE"
+            sleep_seconds = interval_online_seconds if live_status == 1 else interval_offline_seconds
+
             await application.bot.send_message(
                 chat_id=chat_id,
-                text=f"Bilibili room {room_id}: live_status={live_status} ({state})",
+                text=(
+                    f"Bilibili room {room_id}: live_status={live_status} ({state}). "
+                    f"next_check_in={sleep_seconds:g}s"
+                ),
             )
         except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError) as exc:
             logger.exception("Live check failed")
+
+            if last_live_status is not None:
+                sleep_seconds = interval_online_seconds if last_live_status == 1 else interval_offline_seconds
+
             await application.bot.send_message(
                 chat_id=chat_id,
-                text=f"Bilibili room {room_id}: check failed: {exc}",
+                text=f"Bilibili room {room_id}: check failed: {exc}. next_check_in={sleep_seconds:g}s",
             )
 
-        await asyncio.sleep(interval_seconds)
+        await asyncio.sleep(sleep_seconds)

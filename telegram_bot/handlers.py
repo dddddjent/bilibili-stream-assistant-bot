@@ -15,7 +15,7 @@ def _get_config(context: ContextTypes.DEFAULT_TYPE) -> Config:
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /start: start sending live_status every CHECK_INTERVAL_SECONDS."""
+    """Handle /start: check immediately, then poll with different intervals."""
 
     assert update.effective_chat is not None
 
@@ -25,15 +25,17 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         context.application,
         chat_id=update.effective_chat.id,
         room_id=config.bilibili_room_id,
-        interval_seconds=config.check_interval_seconds,
+        interval_offline_seconds=config.check_interval_offline_seconds,
+        interval_online_seconds=config.check_interval_online_seconds,
     )
 
     if started:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=(
-                "Watching started. I will message this chat every "
-                f"{config.check_interval_seconds:g}s with live_status for room {config.bilibili_room_id}."
+                "Watching started. I will check immediately, then poll with: "
+                f"offline={config.check_interval_offline_seconds:g}s, online={config.check_interval_online_seconds:g}s "
+                f"for room {config.bilibili_room_id}."
             ),
         )
     else:
@@ -86,7 +88,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id=update.effective_chat.id,
         text=(
             "Commands:\n"
-            "- /start: start sending live_status every 20s (or CHECK_INTERVAL_SECONDS)\n"
+            "- /start: start checking now; offline/online use different intervals\n"
             "- /stop: stop sending\n"
             "- /status: check once\n"
         ),

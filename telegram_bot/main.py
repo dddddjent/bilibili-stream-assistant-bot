@@ -29,7 +29,8 @@ def main() -> None:
                 application,
                 chat_id=config.startup_chat_id,
                 room_id=config.bilibili_room_id,
-                interval_seconds=config.check_interval_seconds,
+                interval_offline_seconds=config.check_interval_offline_seconds,
+                interval_online_seconds=config.check_interval_online_seconds,
             )
 
     application = build_application(token, post_init=post_init)
