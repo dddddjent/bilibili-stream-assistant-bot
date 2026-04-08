@@ -1,0 +1,10 @@
+services:
+  bot:
+    build:
+      context: .
+    image: bilibili-stream-assistant-bot:latest
+    env_file:
+      - .env
+    restart: unless-stopped
+    init: true
+    # No ports: this app uses Telegram long-polling and does not listen on a network port.

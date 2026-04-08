@@ -35,6 +35,29 @@ Template command:
 uv run python -m telegram_bot
 ```
 
+## Docker
+
+1) Create your env file:
+
+```bash
+cp .env.example .env
+# edit .env and set TELEGRAM_BOT_TOKEN=...
+```
+
+2) Build + run:
+
+```bash
+docker compose up -d --build
+```
+
+3) Follow logs:
+
+```bash
+docker compose logs -f
+```
+
+Note: this bot uses Telegram **long-polling**, so it does **not** listen on an inbound port (no `ports:` mapping needed).
+
 ## Usage
 
 - Send `/start` to the bot in Telegram: it will check immediately, then keep polling the Bilibili
