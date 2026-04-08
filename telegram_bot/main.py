@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
+from telegram.ext import Application
 
 from .app import build_application, configure_logging
+from .config import load_config
+from .watcher import start_watching
 
 
 def main() -> None:
@@ -16,7 +19,20 @@ def main() -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     assert token, "Missing TELEGRAM_BOT_TOKEN (set it in your env or in a .env file)"
 
-    application = build_application(token)
+    config = load_config()
+
+    async def post_init(application: Application) -> None:
+        application.bot_data["config"] = config
+
+        if config.startup_chat_id is not None:
+            start_watching(
+                application,
+                chat_id=config.startup_chat_id,
+                room_id=config.bilibili_room_id,
+                interval_seconds=config.check_interval_seconds,
+            )
+
+    application = build_application(token, post_init=post_init)
     application.run_polling()
 
 

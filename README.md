@@ -2,6 +2,8 @@
 
 Minimal Telegram bot built with **python-telegram-bot** and managed via **uv**.
 
+This bot checks a Bilibili live room every **20 seconds** (configurable) and sends the `live_status` to your Telegram chat.
+
 ## Prerequisites
 
 - Python 3.11+
@@ -32,7 +34,20 @@ Template command:
 uv run python -m telegram_bot
 ```
 
-What it does:
+## Usage
 
-- `/start` and `/help` commands
-- echoes any plain text message
+- Send `/start` to the bot in Telegram: it will begin sending a message every `CHECK_INTERVAL_SECONDS` with
+  the Bilibili `live_status` (1=streaming, 0=offline).
+- Send `/stop` to stop the repeating messages.
+- Send `/status` to check once.
+
+## Config
+
+Set these in `.env`:
+
+- `BILIBILI_ROOM_ID` (default: `1990572299`)
+- `CHECK_INTERVAL_SECONDS` (default: `20`)
+
+Optional:
+
+- `TELEGRAM_CHAT_ID`: if set, the bot will start sending messages to that chat immediately on startup.

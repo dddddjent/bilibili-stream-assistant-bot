@@ -9,8 +9,9 @@ description = "A simple Telegram bot (python-telegram-bot) managed with uv"
 readme = "README.md"
 requires-python = "==3.11.*"
 dependencies = [
-  "python-telegram-bot>=21.0",
+  "python-telegram-bot>=22.0",
   "python-dotenv>=1.0.0",
+  "httpx>=0.28.0",
 ]
 
 [project.scripts]
