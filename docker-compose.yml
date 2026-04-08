@@ -2,7 +2,7 @@ services:
   bot:
     build:
       context: .
-    image: bilibili-stream-assistant-bot:latest
+    image: ddddjent/bilibili-stream-assistant-bot:latest
     env_file:
       - .env
     restart: unless-stopped
