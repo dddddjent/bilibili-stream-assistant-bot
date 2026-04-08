@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# Packaging
+*.egg-info/
+dist/
+build/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments (uv default)
+.venv/
+venv/
+
+# Env files
+.env
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
