@@ -5,7 +5,7 @@ import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from .bilibili import create_bilibili_client, fetch_live_status
+from .bilibili import create_bilibili_client, fetch_room_info, fetch_streamer_name
 from .config import Config
 from .watcher import is_watching, start_watching, stop_watching
 
@@ -38,15 +38,14 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         (started_rooms if started else already_running_rooms).append(room_id)
 
     if started_rooms:
-        rooms_text = ", ".join(str(rid) for rid in started_rooms)
-        suffix = "" if not already_running_rooms else " (some rooms were already running)"
+        suffix = "" if not already_running_rooms else f" ({len(already_running_rooms)} rooms were already running)"
         mode = "online-only" if config.notify_online_only else "all-status"
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=(
                 "Watching started. I will check immediately, then poll with: "
                 f"offline={config.check_interval_offline_seconds:g}s, online={config.check_interval_online_seconds:g}s "
-                f"for rooms: {rooms_text}. mode={mode}{suffix}"
+                f"for {len(started_rooms)} rooms. mode={mode}{suffix}"
             ),
         )
     else:
@@ -76,14 +75,21 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     config = _get_config(context)
 
     async with create_bilibili_client() as client:
-        results = await asyncio.gather(
-            *(fetch_live_status(client, room_id=room_id) for room_id in config.bilibili_room_ids)
+        infos = await asyncio.gather(
+            *(fetch_room_info(client, room_id=room_id) for room_id in config.bilibili_room_ids)
         )
 
+        uids = [info.uid for info in infos]
+        unique_uids = sorted(set(uids))
+        names = await asyncio.gather(*(fetch_streamer_name(client, mid=uid) for uid in unique_uids))
+
+    uid_to_name = dict(zip(unique_uids, names, strict=True))
+
     lines: list[str] = []
-    for room_id, live_status in zip(config.bilibili_room_ids, results, strict=True):
-        state = "STREAMING" if live_status == 1 else "OFFLINE"
-        lines.append(f"Room {room_id}: live_status={live_status} ({state})")
+    for info in infos:
+        name = uid_to_name.get(info.uid, f"mid={info.uid}")
+        state = "STREAMING" if info.live_status == 1 else "OFFLINE"
+        lines.append(f"{name}: live_status={info.live_status} ({state})")
 
     watching_text = "yes" if is_watching(context.application, update.effective_chat.id) else "no"
     lines.append(f"watching={watching_text}")

@@ -6,11 +6,12 @@ import logging
 import httpx
 from telegram.ext import Application
 
-from .bilibili import create_bilibili_client, fetch_live_status
+from .bilibili import create_bilibili_client, fetch_room_info, fetch_streamer_name
 
 logger = logging.getLogger(__name__)
 
 _WATCH_TASKS_KEY = "watch_tasks"
+_STREAMER_NAME_CACHE_KEY = "streamer_name_cache"
 
 
 def _get_watch_tasks(application: Application) -> dict[int, dict[int, asyncio.Task[None]]]:
@@ -18,6 +19,24 @@ def _get_watch_tasks(application: Application) -> dict[int, dict[int, asyncio.Ta
     assert isinstance(tasks_any, dict)
     tasks: dict[int, dict[int, asyncio.Task[None]]] = tasks_any
     return tasks
+
+
+def _get_streamer_name_cache(application: Application) -> dict[int, str]:
+    cache_any = application.bot_data.setdefault(_STREAMER_NAME_CACHE_KEY, {})
+    assert isinstance(cache_any, dict)
+    cache: dict[int, str] = cache_any
+    return cache
+
+
+async def _resolve_streamer_name(application: Application, *, client: httpx.AsyncClient, uid: int) -> str:
+    cache = _get_streamer_name_cache(application)
+    cached = cache.get(uid)
+    if cached is not None:
+        return cached
+
+    name = await fetch_streamer_name(client, mid=uid)
+    cache[uid] = name
+    return name
 
 
 def is_watching(application: Application, chat_id: int) -> bool:
@@ -79,29 +98,44 @@ async def _watch_loop(
     notify_online_only: bool,
 ) -> None:
     last_live_status: int | None = None
+    last_display_name = "Bilibili"
 
     async with create_bilibili_client() as client:
         while True:
             sleep_seconds = interval_offline_seconds
 
             try:
-                live_status = await fetch_live_status(client, room_id=room_id)
-                last_live_status = live_status
+                room_info = await fetch_room_info(client, room_id=room_id)
+                last_live_status = room_info.live_status
 
-                state = "STREAMING" if live_status == 1 else "OFFLINE"
-                sleep_seconds = interval_online_seconds if live_status == 1 else interval_offline_seconds
+                sleep_seconds = (
+                    interval_online_seconds if room_info.live_status == 1 else interval_offline_seconds
+                )
 
-                should_notify = (not notify_online_only) or (live_status == 1)
+                try:
+                    display_name = await _resolve_streamer_name(
+                        application,
+                        client=client,
+                        uid=room_info.uid,
+                    )
+                except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError):
+                    logger.exception("Streamer name lookup failed")
+                    display_name = f"mid={room_info.uid}"
+
+                last_display_name = display_name
+
+                state = "STREAMING" if room_info.live_status == 1 else "OFFLINE"
+                should_notify = (not notify_online_only) or (room_info.live_status == 1)
                 if should_notify:
                     await application.bot.send_message(
                         chat_id=chat_id,
                         text=(
-                            f"Bilibili room {room_id}: live_status={live_status} ({state}). "
+                            f"{display_name}: live_status={room_info.live_status} ({state}). "
                             f"next_check_in={sleep_seconds:g}s"
                         ),
                     )
             except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError) as exc:
-                logger.exception("Live check failed")
+                logger.exception("Room check failed")
 
                 if last_live_status is not None:
                     sleep_seconds = interval_online_seconds if last_live_status == 1 else interval_offline_seconds
@@ -110,7 +144,7 @@ async def _watch_loop(
                 if should_notify:
                     await application.bot.send_message(
                         chat_id=chat_id,
-                        text=f"Bilibili room {room_id}: check failed: {exc}. next_check_in={sleep_seconds:g}s",
+                        text=f"{last_display_name}: check failed: {exc}. next_check_in={sleep_seconds:g}s",
                     )
 
             await asyncio.sleep(sleep_seconds)
