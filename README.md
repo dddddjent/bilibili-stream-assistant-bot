@@ -58,6 +58,20 @@ docker compose logs -f
 
 Note: this bot uses Telegram **long-polling**, so it does **not** listen on an inbound port (no `ports:` mapping needed).
 
+For multiple platforms:
+```bash
+paru -S docker-buildx
+
+docker login
+docker run --privileged --rm tonistiigi/binfmt --install all
+docker buildx create --name multi --use
+docker buildx inspect --bootstrap
+docker buildx build \
+ --platform linux/amd64,linux/arm64 \
+ -t ddddjent/bilibili-live-telegram-bot:latest \
+ --push .
+```
+
 ## Usage
 
 - Send `/start` to the bot in Telegram: it will check immediately, then keep polling the Bilibili
