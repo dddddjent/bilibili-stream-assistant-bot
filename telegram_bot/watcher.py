@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 import httpx
+from telegram.error import NetworkError
 from telegram.ext import Application
 
 from .bilibili import create_bilibili_client, fetch_room_info, fetch_streamer_name
@@ -103,6 +104,7 @@ async def _watch_loop(
     async with create_bilibili_client() as client:
         while True:
             sleep_seconds = interval_offline_seconds
+            message: str | None = None
 
             try:
                 room_info = await fetch_room_info(client, room_id=room_id)
@@ -125,16 +127,12 @@ async def _watch_loop(
                 last_display_name = display_name
 
                 should_notify = (not notify_online_only) or (room_info.live_status == 1)
-                message = ""
                 if room_info.live_status == 1:
                     message = f"{display_name} 开播啦！下次检查： {sleep_seconds:g}s"
                 else:
                     message = f"{display_name} 未开播。下次检查： {sleep_seconds:g}s"
-                if should_notify:
-                    await application.bot.send_message(
-                        chat_id=chat_id,
-                        text=message,
-                    )
+                if not should_notify:
+                    message = None
             except (httpx.HTTPError, AssertionError, KeyError, TypeError, ValueError) as exc:
                 logger.exception("Room check failed")
 
@@ -143,9 +141,16 @@ async def _watch_loop(
 
                 should_notify = (not notify_online_only) or (last_live_status == 1)
                 if should_notify:
+                    message = f"{last_display_name}: check failed: {exc}. next_check_in={sleep_seconds:g}s"
+
+            if message is not None:
+                try:
                     await application.bot.send_message(
                         chat_id=chat_id,
-                        text=f"{last_display_name}: check failed: {exc}. next_check_in={sleep_seconds:g}s",
+                        text=message,
                     )
+                except NetworkError:
+                    logger.exception("Telegram notification failed for room_id=%s; polling will continue", room_id)
+                    sleep_seconds = interval_offline_seconds
 
             await asyncio.sleep(sleep_seconds)
